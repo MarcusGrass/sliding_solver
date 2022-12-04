@@ -45,22 +45,6 @@ fn step(pos: Position, dir: Direction) -> Position {
     }
 }
 
-fn next_position(
-    board: Board,
-    state: State,
-    pos: Position,
-    direction: Direction,
-) -> Option<Position> {
-    let mut new_pos = step(pos, direction);
-    try_move(new_pos, board, state)?;
-
-    while let Some(pos) = try_move(step(new_pos, direction), board, state) {
-        new_pos = pos;
-    }
-
-    Some(new_pos)
-}
-
 fn try_move(pos: Position, board: Board, state: State) -> Option<Position> {
     let (ix, iy) = pos;
 
@@ -87,6 +71,22 @@ fn try_move(pos: Position, board: Board, state: State) -> Option<Position> {
     }
 
     Some(pos)
+}
+
+fn next_position(
+    board: Board,
+    state: State,
+    pos: Position,
+    direction: Direction,
+) -> Option<Position> {
+    let mut new_pos = step(pos, direction);
+    try_move(new_pos, board, state)?;
+
+    while let Some(pos) = try_move(step(new_pos, direction), board, state) {
+        new_pos = pos;
+    }
+
+    Some(new_pos)
 }
 
 fn move_piece(
