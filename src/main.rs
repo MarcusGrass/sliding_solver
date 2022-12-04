@@ -113,7 +113,7 @@ fn move_piece(
     })
 }
 
-fn next_states(board: Board, state: State) -> Vec<(PieceType, Direction, State)> {
+fn neighbourhood(board: Board, state: State) -> Vec<(Move, State)> {
     use Direction::*;
     use PieceType::*;
 
@@ -122,7 +122,8 @@ fn next_states(board: Board, state: State) -> Vec<(PieceType, Direction, State)>
     for direction in [Up, Down, Left, Right] {
         for piece in [Main, HelperOne, HelperTwo] {
             if let Some(state) = move_piece(board, state, piece, direction) {
-                states.push((piece, direction, state));
+                let move_ = (piece, direction);
+                states.push((move_, state));
             }
         }
     }
@@ -130,8 +131,9 @@ fn next_states(board: Board, state: State) -> Vec<(PieceType, Direction, State)>
     states
 }
 
-type Moves = Vec<(PieceType, Direction)>;
-type Solution = (Board, State, Moves, usize);
+type VisitedCount = usize;
+type Move = (PieceType, Direction);
+type Solution = (Board, State, Vec<Move>, VisitedCount);
 
 fn solve_puzzle(board: Board, state: State) -> Option<Solution> {
     let mut queue = VecDeque::new();
@@ -142,18 +144,16 @@ fn solve_puzzle(board: Board, state: State) -> Option<Solution> {
         let sol_found = state.6 && board[state.1 as usize][state.0 as usize] == BoardPiece::Start;
 
         if sol_found {
-            // Solution found, yay!
-            return Some((board, state, moves, visited.len()));
+            return Some((board, state, moves, visited.len())); // Solution found, yay!
         }
 
-        for (piece, dir, state) in next_states(board, state) {
+        for (move_, state) in neighbourhood(board, state) {
             if visited.contains(&state) {
                 continue;
             }
 
-            let mut new_moves = moves.clone();
-            let new_move = (piece, dir);
-            new_moves.push(new_move);
+            let mut new_moves = moves.clone(); //TODO: Avoid
+            new_moves.push(move_);
 
             queue.push_back((state, new_moves));
             visited.insert(state);
