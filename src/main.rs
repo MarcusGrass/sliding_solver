@@ -1,6 +1,4 @@
 use std::collections::{HashSet, VecDeque};
-use std::thread::sleep;
-use std::time::Duration;
 use std::time::Instant;
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
@@ -50,36 +48,40 @@ fn next_position(
     direction: Direction,
 ) -> Option<Position> {
     let mut new_pos = step(pos, direction);
-    try_collision(new_pos, board, state)?;
+    try_move(new_pos, board, state)?;
 
-    while let Some(pos) = try_collision(step(new_pos, direction), board, state) {
+    while let Some(pos) = try_move(step(new_pos, direction), board, state) {
         new_pos = pos;
     }
 
     Some(new_pos)
 }
 
-fn try_collision(pos: Position, board: Board, state: State) -> Option<Position> {
+fn try_move(pos: Position, board: Board, state: State) -> Option<Position> {
     let (ix, iy) = pos;
-    if ix < 0 || ix > 7 || iy < 0 || iy > 7 {
+
+    let out_of_bounds = ix < 0 || ix > 7 || iy < 0 || iy > 7; // TODO: Generalise
+
+    if out_of_bounds {
         return None;
     };
 
     let (ux, uy) = (ix as usize, iy as usize);
 
-    if board[uy][ux] == BoardPiece::Blocker
-        || board[uy][ux] == BoardPiece::Helper
-        || board[uy][ux] == BoardPiece::Main
-    {
-        return None;
+    match board[uy][ux] {
+        BoardPiece::Blocker => return None,
+        BoardPiece::Helper => return None,
+        BoardPiece::Main => return None,
+        _ => {}
     };
 
-    if (state.0, state.1) == (ix, iy)
+    if (state.0, state.1) == (ix, iy) // TODO: Better way to write?
         || (state.2, state.3) == (ix, iy)
         || (state.4, state.5) == (ix, iy)
     {
         return None;
     }
+
     Some(pos)
 }
 
@@ -94,28 +96,16 @@ fn move_piece(
         PieceType::Helper1 => (state.2, state.3),
         PieceType::Helper2 => (state.4, state.5),
     };
-    let new_pos = next_position(board, state, start_pos, direction)?;
+
+    let pos = next_position(board, state, start_pos, direction)?;
 
     Some(match piece_type {
         PieceType::Main => {
-            let goal_visited =
-                state.6 || board[new_pos.1 as usize][new_pos.0 as usize] == BoardPiece::Goal;
-            (
-                new_pos.0,
-                new_pos.1,
-                state.2,
-                state.3,
-                state.4,
-                state.5,
-                goal_visited,
-            )
+            let goal_found = state.6 || board[pos.1 as usize][pos.0 as usize] == BoardPiece::Goal;
+            (pos.0, pos.1, state.2, state.3, state.4, state.5, goal_found)
         }
-        PieceType::Helper1 => (
-            state.0, state.1, new_pos.0, new_pos.1, state.4, state.5, state.6,
-        ),
-        PieceType::Helper2 => (
-            state.0, state.1, state.2, state.3, new_pos.0, new_pos.1, state.6,
-        ),
+        PieceType::Helper1 => (state.0, state.1, pos.0, pos.1, state.4, state.5, state.6),
+        PieceType::Helper2 => (state.0, state.1, state.2, state.3, pos.0, pos.1, state.6),
     })
 }
 
@@ -139,22 +129,18 @@ fn next_states(board: Board, state: State) -> Vec<(PieceType, Direction, State)>
 type Moves = Vec<(PieceType, Direction)>;
 type Solution = (Board, State, Moves, usize);
 
-fn solve_puzzle(board: Board, state: State, animate: bool) -> Option<Solution> {
+fn solve_puzzle(board: Board, state: State) -> Option<Solution> {
     let mut queue = VecDeque::new();
     let mut visited = HashSet::new();
     queue.push_back((state, Vec::new()));
 
     while let Some((state, moves)) = queue.pop_front() {
-        if animate {
-            print!("\x1B[2J\x1B[1;1H");
-            print_board(board, state);
-            sleep(Duration::from_millis(1));
-        }
-
         let sol_found = state.6 && board[state.1 as usize][state.0 as usize] == BoardPiece::Start;
+
         if sol_found {
+            // Solution found, yay!
             return Some((board, state, moves, visited.len()));
-        } // Solution found, yay!
+        }
 
         for (piece, dir, state) in next_states(board, state) {
             if visited.contains(&state) {
@@ -170,9 +156,10 @@ fn solve_puzzle(board: Board, state: State, animate: bool) -> Option<Solution> {
         }
     }
 
-    None // Exhausted search, no solution found
+    None // Exhausted search, no solution found.
 }
 
+// TODO: Improve parser.
 fn puzzle_from_string(input: &str) -> (Board, State) {
     let mut board = [[BoardPiece::Empty; 8]; 8];
     let mut state = (0, 0, 0, 0, 0, 0, false);
@@ -212,7 +199,8 @@ fn puzzle_from_string(input: &str) -> (Board, State) {
     }
     (board, state)
 }
-fn print_move(m: (PieceType, Direction)) {
+// TODO: Improve print.
+fn print_move(m: &(PieceType, Direction)) {
     let (piece, dir) = m;
     match piece {
         PieceType::Main => print!("Main "),
@@ -228,12 +216,13 @@ fn print_move(m: (PieceType, Direction)) {
     println!();
 }
 
-fn print_moves(moves: Vec<(PieceType, Direction)>) {
+fn print_moves(moves: &Vec<(PieceType, Direction)>) {
     for m in moves {
         print_move(m);
     }
 }
 
+// TODO: Improve print
 fn print_board(mut board: Board, state: State) {
     let (mx, my) = (state.0, state.1);
     let (h1x, h1y) = (state.2, state.3);
@@ -268,16 +257,16 @@ fn main() {
     print_board(board, state);
 
     let now = Instant::now();
-    let res = solve_puzzle(board, state, true);
+    let res = solve_puzzle(board, state);
     let elapsed = now.elapsed();
 
     match res {
         None => println!("Could not solve puzzle."),
         Some((board, state, moves, vsize)) => {
             print_board(board, state);
-            print_moves(moves);
+            print_moves(&moves);
             println!("Nodes visited: {}", vsize);
-            println!("Nodes visited: {}", vsize);
+            println!("Length of solution: {}", moves.len());
         }
     }
 
