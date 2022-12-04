@@ -1,3 +1,7 @@
+// TODO: Stop copying the move list.
+// TODO: Figure out when to use references. Am always copying atm.
+// TODO: Find better way to organize state.
+
 use std::collections::{HashSet, VecDeque};
 use std::time::Instant;
 
@@ -11,8 +15,8 @@ enum Direction {
 
 #[derive(Hash, PartialEq, Eq, Clone, Copy)]
 enum PieceType {
-    Helper1,
-    Helper2,
+    HelperOne,
+    HelperTwo,
     Main,
 }
 
@@ -93,8 +97,8 @@ fn move_piece(
 ) -> Option<State> {
     let start_pos = match piece_type {
         PieceType::Main => (state.0, state.1),
-        PieceType::Helper1 => (state.2, state.3),
-        PieceType::Helper2 => (state.4, state.5),
+        PieceType::HelperOne => (state.2, state.3),
+        PieceType::HelperTwo => (state.4, state.5),
     };
 
     let pos = next_position(board, state, start_pos, direction)?;
@@ -104,8 +108,8 @@ fn move_piece(
             let goal_found = state.6 || board[pos.1 as usize][pos.0 as usize] == BoardPiece::Goal;
             (pos.0, pos.1, state.2, state.3, state.4, state.5, goal_found)
         }
-        PieceType::Helper1 => (state.0, state.1, pos.0, pos.1, state.4, state.5, state.6),
-        PieceType::Helper2 => (state.0, state.1, state.2, state.3, pos.0, pos.1, state.6),
+        PieceType::HelperOne => (state.0, state.1, pos.0, pos.1, state.4, state.5, state.6),
+        PieceType::HelperTwo => (state.0, state.1, state.2, state.3, pos.0, pos.1, state.6),
     })
 }
 
@@ -116,7 +120,7 @@ fn next_states(board: Board, state: State) -> Vec<(PieceType, Direction, State)>
     let mut states = Vec::new();
 
     for direction in [Up, Down, Left, Right] {
-        for piece in [Main, Helper1, Helper2] {
+        for piece in [Main, HelperOne, HelperTwo] {
             if let Some(state) = move_piece(board, state, piece, direction) {
                 states.push((piece, direction, state));
             }
@@ -204,8 +208,8 @@ fn print_move(m: &(PieceType, Direction)) {
     let (piece, dir) = m;
     match piece {
         PieceType::Main => print!("Main "),
-        PieceType::Helper1 => print!("Helper1 "),
-        PieceType::Helper2 => print!("Helper2 "),
+        PieceType::HelperOne => print!("Helper1 "),
+        PieceType::HelperTwo => print!("Helper2 "),
     }
     match dir {
         Direction::Up => print!("Up"),
