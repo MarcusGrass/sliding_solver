@@ -67,31 +67,40 @@ impl State {
             .find(|piece| piece.is_main)
             .map(|piece| piece)
     }
-
-    // Returns the next position that the Main Piece would move to if it were to move in the
-    // given direction. If the Main Piece would hit a blocker or another piece, returns None.
+    // Returns the next position that the Main Piece would reach if it were to move in the given
+    // direction. If the Main Piece cannot be moved in the given direction, returns None.
     fn next_position(&self, direction: Direction) -> Option<Position> {
         let main_piece = self.main_piece()?;
-        let mut next_position = main_piece.position;
 
-        match direction {
-            Direction::Up => next_position.y -= 1,
-            Direction::Down => next_position.y += 1,
-            Direction::Left => next_position.x -= 1,
-            Direction::Right => next_position.x += 1,
+        let (dx, dy) = match direction {
+            Direction::Up => (0, -1),
+            Direction::Down => (0, 1),
+            Direction::Left => (-1, 0),
+            Direction::Right => (1, 0),
+        };
+
+        let mut x = main_piece.position.x + dx;
+        let mut y = main_piece.position.y + dy;
+
+        // Stop the Main Piece if it hits a blocker or another piece.
+        while x >= 0 && x < 8 && y >= 0 && y < 8 {
+            let position = Position::new(x, y);
+            if self.blockers.contains(&position) {
+                break;
+            }
+
+            let other_piece = self.pieces.iter().find(|piece| piece.position == position);
+            if other_piece.is_some() {
+                break;
+            }
+
+            x += dx;
+            y += dy;
         }
 
-        if self.blockers.contains(&next_position)
-            || self
-                .pieces
-                .iter()
-                .any(|piece| piece.position == next_position)
-        {
-            None
-        } else {
-            Some(next_position)
-        }
+        Some(Position::new(x, y))
     }
+
     // Returns a new State with the Main Piece moved in the given direction. If the Main Piece
     // cannot be moved in the given direction, returns None.
     fn move_main_piece(&self, direction: Direction) -> Option<Self> {
@@ -131,6 +140,7 @@ fn solve_puzzle(mut state: State) -> Option<Vec<Direction>> {
             if let Some(new_state) = state.move_main_piece(*direction) {
                 if !visited_states.contains(&new_state) {
                     state = new_state;
+                    print_board(&state);
                     moves.push(*direction);
                     visited_states.insert(state.clone());
                     found_move = true;
@@ -175,59 +185,6 @@ fn solve_puzzle(mut state: State) -> Option<Vec<Direction>> {
 
 // Solves the puzzle and returns the sequence of moves required to solve it, or None if the puzzle
 // cannot be solved.
-fn solve_puzzle_old(mut state: State) -> Option<Vec<Direction>> {
-    let mut moves = vec![];
-
-    // Move the Main Piece to the target.
-    while state.main_piece()?.position != state.target {
-        print_board(&state);
-        let mut found_move = false;
-
-        for direction in &[
-            Direction::Up,
-            Direction::Down,
-            Direction::Left,
-            Direction::Right,
-        ] {
-            if let Some(new_state) = state.move_main_piece(*direction) {
-                state = new_state;
-                moves.push(*direction);
-                found_move = true;
-                break;
-            }
-        }
-
-        if !found_move {
-            return None;
-        }
-    }
-
-    // Move the Main Piece back to its original position.
-    while state.main_piece()?.position != state.main_piece()?.position {
-        let mut found_move = false;
-
-        for direction in &[
-            Direction::Up,
-            Direction::Down,
-            Direction::Left,
-            Direction::Right,
-        ] {
-            if let Some(new_state) = state.move_main_piece(*direction) {
-                state = new_state;
-                moves.push(*direction);
-                found_move = true;
-                break;
-            }
-        }
-
-        if !found_move {
-            return None;
-        }
-    }
-
-    Some(moves)
-}
-
 fn print_board(state: &State) {
     // Create an 8x8 grid of spaces.
     let mut grid = vec![vec![' '; 8]; 8];
