@@ -1,5 +1,4 @@
-use std::collections::{BTreeSet, HashSet, VecDeque};
-use std::ptr;
+use std::collections::{HashSet, VecDeque};
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 enum Direction {
@@ -9,202 +8,174 @@ enum Direction {
     Right,
 }
 
-#[derive(PartialOrd, Ord, Clone, Copy, Eq, PartialEq, Hash)]
-struct Position {
-    x: i32,
-    y: i32,
+#[derive(Hash, PartialEq, Eq, Clone, Copy)]
+enum PieceType {
+    Helper1,
+    Helper2,
+    Main,
 }
 
-impl Position {
-    // Returns a new Position with the given x and y coordinates.
-    fn new(x: i32, y: i32) -> Self {
-        Self { x, y }
-    }
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Hash, PartialEq, Eq, Clone, Copy)]
 struct Piece {
-    position: Position,
-    is_main: bool,
+    ptype: PieceType,
+    pos: Position,
 }
 
-impl Piece {
-    // Returns a new Piece with the given position and is_main flag.
-    fn new(position: Position, is_main: bool) -> Self {
-        Self { position, is_main }
-    }
+#[derive(PartialEq, Eq, Clone, Copy)]
+enum BoardPiece {
+    Start,
+    Goal,
+    Blocker,
+    Empty,
+    Helper,
+    Main,
 }
 
-#[derive(Clone, PartialEq, Eq, Hash)]
-struct State<'a> {
-    pieces: Vec<Piece>,
-    target: Position,
-    blockers: &'a BTreeSet<Position>,
+#[derive(Hash, PartialEq, Eq, Clone, Copy)]
+struct State {
+    pieces: [Piece; 3],
+    goal_visited: bool,
 }
 
-impl<'a> State<'a> {
-    // Returns a new State with the given pieces, target, and blockers.
-    fn new(pieces: Vec<Piece>, target: Position, blockers: &'a BTreeSet<Position>) -> Self {
-        Self {
-            pieces,
-            target,
-            blockers,
-        }
-    }
+type Board = [[BoardPiece; 8]; 8];
+type Position = (i8, i8);
 
-    // Returns the position of the Main Piece, or None if the Main Piece is not found.
-    fn main_piece(&self) -> Option<&Piece> {
-        self.pieces.iter().find(|piece| piece.is_main)
-    }
+fn step(pos: Position, dir: Direction) -> Position {
+    let (dx, dy) = match dir {
+        Direction::Up => (0, -1),
+        Direction::Down => (0, 1),
+        Direction::Left => (-1, 0),
+        Direction::Right => (1, 0),
+    };
 
-    // Returns the next position that the given piece would reach if it were to move in the given
-    // direction. If the piece cannot be moved in the given direction, returns None.
-    fn next_position(&self, piece: &Piece, direction: Direction) -> Option<Position> {
-        let (dx, dy) = match direction {
-            Direction::Up => (0, -1),
-            Direction::Down => (0, 1),
-            Direction::Left => (-1, 0),
-            Direction::Right => (1, 0),
-        };
+    let (x, y) = pos;
 
-        let mut x = piece.position.x + dx;
-        let mut y = piece.position.y + dy;
-
-        // Stop the piece if it hits a blocker, another piece, or the edge of the board.
-        while x >= 0 && x < 8 && y >= 0 && y < 8 {
-            let position = Position::new(x, y);
-            if self.blockers.contains(&position) {
-                break;
-            }
-
-            let other_piece = self
-                .pieces
-                .iter()
-                // .find(|p| p.position == position && p != piece);
-                .find(|p| p.position == position && !ptr::eq(p, &piece));
-            if other_piece.is_some() {
-                break;
-            }
-
-            x += dx;
-            y += dy;
-        }
-
-        // If the piece moved outside of the board, return None.
-        if x < 0 || x >= 8 || y < 0 || y >= 8 {
-            return None;
-        }
-
-        Some(Position::new(x, y))
-    }
-    // Returns a new State with the given piece moved in the given direction. If the piece
-    // cannot be moved in the given direction, returns None.
-    fn move_piece(&self, piece: &Piece, direction: Direction) -> Option<Self> {
-        let next_position = self.next_position(piece, direction)?;
-
-        let mut pieces = self.pieces.clone();
-        for i in 0..pieces.len() {
-            if pieces[i].position == piece.position {
-                pieces[i].position = next_position;
-                break;
-            }
-        }
-
-        Some(Self::new(pieces, self.target, &self.blockers))
-    }
-
-    // Returns a Vec of all possible next states that can be reached from this state.
-    fn next_states(&self) -> Vec<State> {
-        let mut states = Vec::new();
-
-        for direction in [
-            Direction::Up,
-            Direction::Down,
-            Direction::Left,
-            Direction::Right,
-        ]
-        .iter()
-        {
-            for piece in self.pieces.iter() {
-                if let Some(state) = self.move_piece(piece, *direction) {
-                    states.push(state);
-                }
-            }
-        }
-
-        states
-    }
+    (x + dx, y + dy)
 }
 
-fn print_board(state: &State) {
-    // Create an 8x8 grid of spaces.
-    let mut grid = vec![vec![' '; 8]; 8];
+fn next_position(
+    board: Board,
+    state: State,
+    piece: Piece,
+    direction: Direction,
+) -> Option<Position> {
+    let mut new_pos = step(piece.pos, direction);
+    if try_collision(new_pos, board, state) {
+        return None;
+    };
 
-    // Place the blockers on the grid.
-    for position in state.blockers.iter() {
-        grid[position.x as usize][position.y as usize] = 'X';
+    let mut prev_pos = new_pos;
+
+    while !try_collision(new_pos, board, state) {
+        prev_pos = new_pos;
+        new_pos = step(new_pos, direction);
     }
 
-    // Place the pieces on the grid.
-    for piece in &state.pieces {
-        grid[piece.position.x as usize][piece.position.y as usize] =
-            if piece.is_main { 'M' } else { 'O' };
-    }
+    Some(prev_pos)
+}
 
-    // Place the target on the grid.
-    grid[state.target.x as usize][state.target.y as usize] = 'T';
+fn try_collision(pos: Position, board: Board, state: State) -> bool {
+    let (sx, sy) = pos;
 
-    // Print the grid to the terminal.
-    for row in grid {
-        for cell in row {
-            print!("{} ", cell);
+    if sx < 0 || sx > 7 || sy < 0 || sy > 7 {
+        return true;
+    };
+
+    if board[sx as usize][sy as usize] == BoardPiece::Blocker
+        || board[sx as usize][sy as usize] == BoardPiece::Helper
+        || board[sx as usize][sy as usize] == BoardPiece::Main
+    {
+        return true;
+    };
+
+    // We can not collide with ourselves since we check after first step
+    for other in state.pieces {
+        if other.pos == (sx, sy) {
+            return true;
         }
-        println!();
     }
+    return false;
+}
+
+// Returns the next position that the given piece would reach if it
+// Returns a new State with the given piece moved in the given direction. If the piece
+// cannot be moved in the given direction, returns None.
+fn move_piece(board: Board, state: State, piece: Piece, direction: Direction) -> Option<State> {
+    let next_position = next_position(board, state, piece, direction)?;
+
+    let new_piece = Piece {
+        ptype: piece.ptype,
+        pos: next_position,
+    };
+    Some(match piece.ptype {
+        PieceType::Main => State {
+            pieces: [new_piece, state.pieces[1], state.pieces[2]],
+            goal_visited: board[next_position.0 as usize][next_position.1 as usize]
+                == BoardPiece::Goal
+                || state.goal_visited,
+        },
+        PieceType::Helper1 => State {
+            pieces: [state.pieces[0], new_piece, state.pieces[2]],
+            goal_visited: false,
+        },
+        PieceType::Helper2 => State {
+            pieces: [state.pieces[0], state.pieces[1], new_piece],
+            goal_visited: false,
+        },
+    })
+}
+
+// Returns a Vec of all possible next states that can be reached from this state.
+fn next_states(board: Board, state: State) -> Vec<State> {
+    let mut states = Vec::new();
+
+    for direction in [
+        Direction::Up,
+        Direction::Down,
+        Direction::Left,
+        Direction::Right,
+    ]
+    .iter()
+    {
+        for piece in state.pieces.iter() {
+            if let Some(state) = move_piece(board, state, *piece, *direction) {
+                states.push(state);
+            }
+        }
+    }
+
+    states
 }
 
 // Solves the puzzle and returns a sequence of moves that solves the puzzle, or None if the puzzle
 // cannot be solved.
 // Returns a sequence of moves that can be made to reach the target and then return to the starting
 // position, or None if no such sequence of moves exists.
-fn solve_puzzle(state: State) -> Option<Vec<Direction>> {
+fn solve_puzzle(board: Board, state: State) -> Option<Vec<Direction>> {
     let mut queue = VecDeque::new();
-    let mut visited_states = HashSet::new();
-    let blockers = state.blockers.clone();
-    let target = state.target.clone();
-
+    let mut visited_states: HashSet<State> = HashSet::new();
     queue.push_back((state, Vec::new()));
 
     while let Some((state, moves)) = queue.pop_front() {
-        print_board(&state);
+        // print_board(board, state);
         // If the Main Piece has reached the target and then returned to its original position,
         // return the sequence of moves that were made.
-        if state.pieces[0].position == state.target && state.pieces[0].is_main {
+        let (x, y) = state.pieces[0].pos;
+        if state.goal_visited && board[x as usize][y as usize] == BoardPiece::Start {
             return Some(moves);
         }
 
-        for direction in &[
-            Direction::Up,
-            Direction::Down,
-            Direction::Left,
-            Direction::Right,
-        ] {
-            let piece = &state.pieces[0];
-            if let Some(next_position) = state.next_position(piece, *direction) {
-                let mut new_pieces = state.pieces.clone();
-                new_pieces[0] = Piece::new(next_position, !piece.is_main);
-
-                let new_state = State::new(new_pieces, target, &blockers);
-                if visited_states.contains(&new_state) {
-                    continue;
-                }
-
-                let mut new_moves = moves.clone();
-                new_moves.push(*direction);
-                queue.push_back((new_state, new_moves));
+        for new_state in next_states(board, state) {
+            if visited_states.contains(&new_state) {
+                // println!("Avoided old state.");
+                continue;
             }
+            queue.push_back((new_state, vec![Direction::Up]));
         }
+
         visited_states.insert(state);
+        // println!("Queue size : {}", queue.len());
+        // println!("Nodes visited: {}", visited_states.len());
     }
 
     // If we reach this point, we have exhausted all possible states without finding a solution.
@@ -214,26 +185,74 @@ fn solve_puzzle(state: State) -> Option<Vec<Direction>> {
 fn print_moves(moves: Vec<Direction>) {
     for dir in moves {
         match dir {
-            Direction::Up => print!("Up"),
-            Direction::Down => print!("Down"),
-            Direction::Left => print!("Left"),
-            Direction::Right => print!("Right"),
+            Direction::Up => println!("Up"),
+            Direction::Down => println!("Down"),
+            Direction::Left => println!("Left"),
+            Direction::Right => println!("Right"),
         }
     }
 }
 
+fn print_board(mut board: Board, state: State) {
+    let (mx, my) = state.pieces[0].pos;
+    let (h1x, h1y) = state.pieces[1].pos;
+    let (h2x, h2y) = state.pieces[2].pos;
+    board[mx as usize][my as usize] = BoardPiece::Main;
+    board[h1x as usize][h1y as usize] = BoardPiece::Helper;
+    board[h2x as usize][h2y as usize] = BoardPiece::Helper;
+
+    println!("========");
+    for line in board {
+        let mut output_line = "|".to_string();
+        for piece in line {
+            let sign = match piece {
+                BoardPiece::Main => "M",
+                BoardPiece::Helper => "H",
+                BoardPiece::Blocker => "#",
+                BoardPiece::Goal => "o",
+                BoardPiece::Empty => " ",
+                BoardPiece::Start => "+",
+            };
+            output_line = output_line + sign;
+        }
+        output_line = output_line + "|";
+        println!("{output_line}");
+    }
+    println!("========");
+}
+
 fn main() {
-    let blockers = BTreeSet::new();
-    let state = State::new(
-        vec![
-            Piece::new(Position::new(4, 4), true),
-            Piece::new(Position::new(0, 0), false),
-            Piece::new(Position::new(7, 7), false),
-        ],
-        Position::new(4, 5),
-        &blockers,
-    );
-    let moves = solve_puzzle(state);
+    let mut board = [[BoardPiece::Empty; 8]; 8];
+
+    board[0][1] = BoardPiece::Blocker;
+    board[1][1] = BoardPiece::Blocker;
+    board[1][2] = BoardPiece::Blocker;
+    board[3][7] = BoardPiece::Blocker;
+    board[5][0] = BoardPiece::Blocker;
+    board[6][3] = BoardPiece::Blocker;
+    board[6][4] = BoardPiece::Blocker;
+    board[6][5] = BoardPiece::Blocker;
+
+    board[0][4] = BoardPiece::Start;
+    board[5][4] = BoardPiece::Goal;
+
+    let main = Piece {
+        ptype: PieceType::Main,
+        pos: (0, 4),
+    };
+    let helper1 = Piece {
+        ptype: PieceType::Helper1,
+        pos: (1, 4),
+    };
+    let helper2 = Piece {
+        ptype: PieceType::Helper2,
+        pos: (3, 2),
+    };
+    let state = State {
+        pieces: [main, helper1, helper2],
+        goal_visited: false,
+    };
+    let moves = solve_puzzle(board, state);
 
     match moves {
         None => println!("Could not solve puzzle."),
