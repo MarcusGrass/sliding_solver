@@ -137,29 +137,34 @@ fn next_states(board: Board, state: State) -> Vec<(PieceType, Direction, State)>
 }
 
 type Moves = Vec<(PieceType, Direction)>;
-type Result = (Board, State, Moves, usize);
+type Solution = (Board, State, Moves, usize);
 
-fn solve_puzzle(board: Board, state: State) -> Option<Result> {
+fn solve_puzzle(board: Board, state: State, animate: bool) -> Option<Solution> {
     let mut queue = VecDeque::new();
     let mut visited = HashSet::new();
     queue.push_back((state, Vec::new()));
 
     while let Some((state, moves)) = queue.pop_front() {
-        print!("\x1B[2J\x1B[1;1H");
-        print_board(board, state);
-        sleep(Duration::from_millis(1));
+        if animate {
+            print!("\x1B[2J\x1B[1;1H");
+            print_board(board, state);
+            sleep(Duration::from_millis(1));
+        }
+
         let sol_found = state.6 && board[state.1 as usize][state.0 as usize] == BoardPiece::Start;
         if sol_found {
             return Some((board, state, moves, visited.len()));
-        }
+        } // Solution found, yay!
 
         for (piece, dir, state) in next_states(board, state) {
             if visited.contains(&state) {
                 continue;
             }
+
             let mut new_moves = moves.clone();
             let new_move = (piece, dir);
             new_moves.push(new_move);
+
             queue.push_back((state, new_moves));
             visited.insert(state);
         }
@@ -263,7 +268,7 @@ fn main() {
     print_board(board, state);
 
     let now = Instant::now();
-    let res = solve_puzzle(board, state);
+    let res = solve_puzzle(board, state, true);
     let elapsed = now.elapsed();
 
     match res {
