@@ -1,7 +1,7 @@
 use std::collections::{BTreeSet, HashSet, VecDeque};
 use std::ptr;
 
-#[derive(Clone, Copy, Eq, PartialEq)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
 enum Direction {
     Up,
     Down,
@@ -36,15 +36,15 @@ impl Piece {
 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
-struct State {
+struct State<'a> {
     pieces: Vec<Piece>,
     target: Position,
-    blockers: BTreeSet<Position>,
+    blockers: &'a BTreeSet<Position>,
 }
 
-impl State {
+impl<'a> State<'a> {
     // Returns a new State with the given pieces, target, and blockers.
-    fn new(pieces: Vec<Piece>, target: Position, blockers: BTreeSet<Position>) -> Self {
+    fn new(pieces: Vec<Piece>, target: Position, blockers: &'a BTreeSet<Position>) -> Self {
         Self {
             pieces,
             target,
@@ -110,7 +110,7 @@ impl State {
             }
         }
 
-        Some(Self::new(pieces, self.target, self.blockers))
+        Some(Self::new(pieces, self.target, &self.blockers))
     }
 
     // Returns a Vec of all possible next states that can be reached from this state.
@@ -135,68 +135,95 @@ impl State {
         states
     }
 }
+
+fn print_board(state: &State) {
+    // Create an 8x8 grid of spaces.
+    let mut grid = vec![vec![' '; 8]; 8];
+
+    // Place the blockers on the grid.
+    for position in state.blockers.iter() {
+        grid[position.x as usize][position.y as usize] = 'X';
+    }
+
+    // Place the pieces on the grid.
+    for piece in &state.pieces {
+        grid[piece.position.x as usize][piece.position.y as usize] =
+            if piece.is_main { 'M' } else { 'O' };
+    }
+
+    // Place the target on the grid.
+    grid[state.target.x as usize][state.target.y as usize] = 'T';
+
+    // Print the grid to the terminal.
+    for row in grid {
+        for cell in row {
+            print!("{} ", cell);
+        }
+        println!();
+    }
+}
+
 // Solves the puzzle and returns a sequence of moves that solves the puzzle, or None if the puzzle
 // cannot be solved.
+// Returns a sequence of moves that can be made to reach the target and then return to the starting
+// position, or None if no such sequence of moves exists.
 fn solve_puzzle(state: State) -> Option<Vec<Direction>> {
-    // We will use a breadth-first search algorithm to solve the puzzle.
     let mut queue = VecDeque::new();
     let mut visited_states = HashSet::new();
+    let blockers = state.blockers.clone();
+    let target = state.target.clone();
 
-    // Start by adding the initial state to the queue and marking it as visited.
-    queue.push_back((state.clone(), Vec::new()));
-    visited_states.insert(state);
+    queue.push_back((state, Vec::new()));
 
-    // Keep searching until we either find a solution or exhaust all possible states.
     while let Some((state, moves)) = queue.pop_front() {
-        // If the Main Piece is at the target, we have found a solution.
-        if state
-            .main_piece()
-            .map_or(false, |p| p.position == state.target)
-        {
+        print_board(&state);
+        // If the Main Piece has reached the target and then returned to its original position,
+        // return the sequence of moves that were made.
+        if state.pieces[0].position == state.target && state.pieces[0].is_main {
             return Some(moves);
         }
 
-        // Add all possible next states to the queue.
-        let new_states = state.next_states();
-        for new_state in new_states {
-            if !visited_states.contains(&new_state) {
-                // Add the next state to the queue and mark it as visited.
+        for direction in &[
+            Direction::Up,
+            Direction::Down,
+            Direction::Left,
+            Direction::Right,
+        ] {
+            let piece = &state.pieces[0];
+            if let Some(next_position) = state.next_position(piece, *direction) {
+                let mut new_pieces = state.pieces.clone();
+                new_pieces[0] = Piece::new(next_position, !piece.is_main);
+
+                let new_state = State::new(new_pieces, target, &blockers);
+                if visited_states.contains(&new_state) {
+                    continue;
+                }
+
                 let mut new_moves = moves.clone();
-                new_moves.push(direction);
+                new_moves.push(*direction);
                 queue.push_back((new_state, new_moves));
-                visited_states.insert(new_state);
             }
         }
+        visited_states.insert(state);
     }
 
     // If we reach this point, we have exhausted all possible states without finding a solution.
     None
 }
 
+fn print_moves(moves: Vec<Direction>) {
+    for dir in moves {
+        match dir {
+            Direction::Up => print!("Up"),
+            Direction::Down => print!("Down"),
+            Direction::Left => print!("Left"),
+            Direction::Right => print!("Right"),
+        }
+    }
+}
+
 fn main() {
-    // Test 1:
-    //
-    // +---+---+---+---+---+---+---+---+
-    // |   |   |   |   |   |   |   |   |
-    // +---+---+---+---+---+---+---+---+
-    // |   |   |   |   |   |   |   |   |
-    // +---+---+---+---+---+---+---+---+
-    // |   |   |   |   |   |   |   |   |
-    // +---+---+---+---+---+---+---+---+
-    // |   |   |   |   |   |   |   |   |
-    // +---+---+---+---+---+---+---+---+
-    // |   |   |   |   |   |   |   |   |
-    // +---+---+---+---+---+---+---+---+
-    // |   |   |   |   |   |   |   |   |
-    // +---+---+---+---+---+---+---+---+
-    // |   |   |   |   |   |   |   |   |
-    // +---+---+---+---+---+---+---+---+
-    // |   |   |   |   | X |   |   |   |
-    // +---+---+---+---+---+---+---+---+
-    //
-    // Main Piece: (4, 4)
-    // Target: (4, 5)
-    // Blockers: None
+    let blockers = BTreeSet::new();
     let state = State::new(
         vec![
             Piece::new(Position::new(4, 4), true),
@@ -204,8 +231,12 @@ fn main() {
             Piece::new(Position::new(7, 7), false),
         ],
         Position::new(4, 5),
-        HashSet::new(),
+        &blockers,
     );
     let moves = solve_puzzle(state);
-    assert_eq!(moves, Some(vec![Direction::Right]));
+
+    match moves {
+        None => println!("Could not solve puzzle."),
+        Some(move_list) => print_moves(move_list),
+    }
 }
