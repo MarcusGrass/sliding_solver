@@ -1,5 +1,4 @@
-use std::collections::{BTreeSet, HashSet, VecDeque};
-use std::ptr;
+use std::collections::{HashSet, VecDeque};
 
 #[derive(Clone, Copy, Eq, PartialEq)]
 enum Direction {
@@ -9,7 +8,7 @@ enum Direction {
     Right,
 }
 
-#[derive(PartialOrd, Ord, Clone, Copy, Eq, PartialEq, Hash)]
+#[derive(Clone, Copy, Eq, PartialEq, Hash)]
 struct Position {
     x: i32,
     y: i32,
@@ -22,7 +21,7 @@ impl Position {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy)]
 struct Piece {
     position: Position,
     is_main: bool,
@@ -35,16 +34,16 @@ impl Piece {
     }
 }
 
-#[derive(Clone, PartialEq, Eq, Hash)]
+#[derive(Clone)]
 struct State {
     pieces: Vec<Piece>,
     target: Position,
-    blockers: BTreeSet<Position>,
+    blockers: HashSet<Position>,
 }
 
 impl State {
     // Returns a new State with the given pieces, target, and blockers.
-    fn new(pieces: Vec<Piece>, target: Position, blockers: BTreeSet<Position>) -> Self {
+    fn new(pieces: Vec<Piece>, target: Position, blockers: HashSet<Position>) -> Self {
         Self {
             pieces,
             target,
@@ -80,8 +79,7 @@ impl State {
             let other_piece = self
                 .pieces
                 .iter()
-                // .find(|p| p.position == position && p != piece);
-                .find(|p| p.position == position && !ptr::eq(p, &piece));
+                .find(|p| p.position == position && p != piece);
             if other_piece.is_some() {
                 break;
             }
@@ -97,44 +95,45 @@ impl State {
 
         Some(Position::new(x, y))
     }
-    // Returns a new State with the given piece moved in the given direction. If the piece
-    // cannot be moved in the given direction, returns None.
-    fn move_piece(&self, piece: &Piece, direction: Direction) -> Option<Self> {
-        let next_position = self.next_position(piece, direction)?;
-
-        let mut pieces = self.pieces.clone();
-        for i in 0..pieces.len() {
-            if pieces[i].position == piece.position {
-                pieces[i].position = next_position;
-                break;
-            }
-        }
-
-        Some(Self::new(pieces, self.target, self.blockers))
-    }
-
-    // Returns a Vec of all possible next states that can be reached from this state.
-    fn next_states(&self) -> Vec<State> {
-        let mut states = Vec::new();
-
-        for direction in [
-            Direction::Up,
-            Direction::Down,
-            Direction::Left,
-            Direction::Right,
-        ]
-        .iter()
-        {
-            for piece in self.pieces.iter() {
-                if let Some(state) = self.move_piece(piece, *direction) {
-                    states.push(state);
-                }
-            }
-        }
-
-        states
-    }
 }
+// Returns a new State with the given piece moved in the given direction. If the piece
+// cannot be moved in the given direction, returns None.
+fn move_piece(&self, piece: &Piece, direction: Direction) -> Option<Self> {
+    let next_position = self.next_position(piece, direction)?;
+
+    let mut pieces = self.pieces.clone();
+    for i in 0..pieces.len() {
+        if pieces[i].position == piece.position {
+            pieces[i].position = next_position;
+            break;
+        }
+    }
+
+    Some(Self::new(pieces, self.target, self.blockers))
+}
+
+// Returns a Vec of all possible next states that can be reached from this state.
+fn next_states(&self) -> Vec<State> {
+    let mut states = Vec::new();
+
+    for direction in [
+        Direction::Up,
+        Direction::Down,
+        Direction::Left,
+        Direction::Right,
+    ]
+    .iter()
+    {
+        for piece in self.pieces.iter() {
+            if let Some(state) = self.move_piece(piece, *direction) {
+                states.push(state);
+            }
+        }
+    }
+
+    states
+}
+
 // Solves the puzzle and returns a sequence of moves that solves the puzzle, or None if the puzzle
 // cannot be solved.
 fn solve_puzzle(state: State) -> Option<Vec<Direction>> {
