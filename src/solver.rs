@@ -1,4 +1,5 @@
 use std::collections::{HashSet, VecDeque};
+use std::rc::Rc;
 
 #[derive(Hash, Debug, Clone, Copy, Eq, PartialEq)]
 pub enum Direction {
@@ -26,44 +27,63 @@ pub enum BoardPiece {
 }
 
 pub type State = (i8, i8, i8, i8, i8, i8, bool);
-
 pub type Board = Vec<Vec<BoardPiece>>;
 
 type Position = (i8, i8);
+type VisitedCount = usize;
+type Move = (PieceType, Direction);
 
-fn step(pos: Position, dir: Direction) -> Position {
-    match dir {
-        Direction::Up => (pos.0, pos.1 - 1),
-        Direction::Down => (pos.0, pos.1 + 1),
-        Direction::Left => (pos.0 - 1, pos.1),
-        Direction::Right => (pos.0 + 1, pos.1),
+struct Node {
+    m: Option<Move>,
+    state: State,
+    prev: Option<Rc<Node>>,
+}
+
+impl Node {
+    fn new(m: Option<Move>, state: State, prev: Option<Rc<Self>>) -> Self {
+        Self { m, state, prev }
+    }
+    fn moves(&self) -> Vec<Move> {
+        let mut moves = Vec::new();
+        let mut current = self;
+        while let Some(prev) = &current.prev {
+            moves.push(current.m.unwrap());
+            current = prev.as_ref();
+        }
+        moves.reverse();
+        moves
     }
 }
 
-fn try_move(pos: Position, board: &Board, state: State) -> Option<Position> {
-    let (ix, iy) = pos;
+fn step((x, y): Position, dir: Direction) -> Position {
+    use Direction::*;
+    match dir {
+        Up => (x, y - 1),
+        Down => (x, y + 1),
+        Left => (x - 1, y),
+        Right => (x + 1, y),
+    }
+}
 
-    let out_of_bounds = ix < 0 || ix >= board[0].len() as i8 || iy < 0 || iy >= board.len() as i8;
+fn try_move((x, y): Position, board: &Board, state: State) -> Option<Position> {
+    let out_of_bounds = x < 0 || x >= board[0].len() as i8 || y < 0 || y >= board.len() as i8;
 
     if out_of_bounds {
         return None;
     };
 
-    let (ux, uy) = (ix as usize, iy as usize);
-
-    match board[uy][ux] {
+    match board[y as usize][x as usize] {
         BoardPiece::Blocker => return None,
         _ => {}
     };
 
-    if (state.0, state.1) == (ix, iy) // TODO: Better way to write?
-        || (state.2, state.3) == (ix, iy)
-        || (state.4, state.5) == (ix, iy)
+    // Collison with other pieces
+    if (state.0, state.1) == (x, y) || (state.2, state.3) == (x, y) || (state.4, state.5) == (x, y)
     {
         return None;
     }
 
-    Some(pos)
+    Some((x, y))
 }
 
 fn next_position(
@@ -88,21 +108,22 @@ fn move_piece(
     piece_type: PieceType,
     direction: Direction,
 ) -> Option<State> {
+    use PieceType::*;
     let start_pos = match piece_type {
-        PieceType::Main => (state.0, state.1),
-        PieceType::HelperOne => (state.2, state.3),
-        PieceType::HelperTwo => (state.4, state.5),
+        Main => (state.0, state.1),
+        HelperOne => (state.2, state.3),
+        HelperTwo => (state.4, state.5),
     };
 
     let pos = next_position(board, state, start_pos, direction)?;
 
     Some(match piece_type {
-        PieceType::Main => {
+        Main => {
             let goal_found = state.6 || board[pos.1 as usize][pos.0 as usize] == BoardPiece::Goal;
             (pos.0, pos.1, state.2, state.3, state.4, state.5, goal_found)
         }
-        PieceType::HelperOne => (state.0, state.1, pos.0, pos.1, state.4, state.5, state.6),
-        PieceType::HelperTwo => (state.0, state.1, state.2, state.3, pos.0, pos.1, state.6),
+        HelperOne => (state.0, state.1, pos.0, pos.1, state.4, state.5, state.6),
+        HelperTwo => (state.0, state.1, state.2, state.3, pos.0, pos.1, state.6),
     })
 }
 
@@ -124,34 +145,30 @@ fn neighbourhood(board: &Board, state: State) -> Vec<(Move, State)> {
     states
 }
 
-type VisitedCount = usize;
-type Move = (PieceType, Direction);
-
 pub fn solve_puzzle(
     board: &Board,
     state: State,
 ) -> Option<(&Board, State, Vec<Move>, VisitedCount)> {
     let mut visited = HashSet::new();
-
     let mut queue = VecDeque::new();
-    queue.push_back((state, Vec::new()));
 
-    while let Some((state, moves)) = queue.pop_front() {
+    queue.push_back(Node::new(None, state, None));
+
+    while let Some(node) = queue.pop_front() {
+        let state = node.state;
         let sol_found = state.6 && board[state.1 as usize][state.0 as usize] == BoardPiece::Start;
 
         if sol_found {
-            return Some((&board, state, moves, visited.len())); // Solution found, yay!
+            return Some((board, state, node.moves(), visited.len())); // Solution found, yay!
         }
 
-        for (move_, state) in neighbourhood(&board, state) {
+        let rc_node = Rc::new(node);
+        for (move_, state) in neighbourhood(board, rc_node.state) {
             if visited.contains(&state) {
                 continue;
             }
 
-            let mut new_moves = moves.clone(); //TODO: Avoid
-            new_moves.push(move_);
-
-            queue.push_back((state, new_moves));
+            queue.push_back(Node::new(Some(move_), state, Some(Rc::clone(&rc_node))));
             visited.insert(state);
         }
     }

@@ -44,7 +44,7 @@ pub fn puzzle_from_string(input: &str) -> (Board, State) {
 }
 
 // TODO: Improve print.
-pub fn print_move(m: &(PieceType, Direction)) {
+fn print_move(m: &(PieceType, Direction)) {
     let (piece, dir) = m;
     match piece {
         PieceType::Main => print!("Main "),
@@ -60,7 +60,7 @@ pub fn print_move(m: &(PieceType, Direction)) {
     println!();
 }
 
-fn print_moves(moves: &Vec<(PieceType, Direction)>) {
+pub fn print_moves(moves: &Vec<(PieceType, Direction)>) {
     for m in moves {
         print_move(m);
     }
