@@ -7,4 +7,5 @@ edition = "2021"
 
 [dependencies]
 json = "0.12.4"
+pprof = "0.11.0"
 priority-queue = "1.3.0"
