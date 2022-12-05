@@ -5,7 +5,7 @@
 use std::collections::{HashSet, VecDeque};
 use std::time::Instant;
 
-#[derive(Hash, Debug, Clone, Copy, Eq, PartialEq)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
 enum Direction {
     Up,
     Down,
@@ -48,7 +48,7 @@ fn step(pos: Position, dir: Direction) -> Position {
 fn try_move(pos: Position, board: Board, state: State) -> Option<Position> {
     let (ix, iy) = pos;
 
-    let out_of_bounds = ix < 0 || ix >= board[0].len() as i8 || iy < 0 || iy >= board.len() as i8;
+    let out_of_bounds = ix < 0 || ix > 7 || iy < 0 || iy > 7; // TODO: Generalise
 
     if out_of_bounds {
         return None;
@@ -119,8 +119,8 @@ fn neighbourhood(board: Board, state: State) -> Vec<(Move, State)> {
 
     let mut states = Vec::new();
 
-    for piece in [Main, HelperOne, HelperTwo] {
-        for direction in [Left, Right, Up, Down] {
+    for direction in [Up, Down, Left, Right] {
+        for piece in [Main, HelperOne, HelperTwo] {
             if let Some(state) = move_piece(board, state, piece, direction) {
                 let move_ = (piece, direction);
                 states.push((move_, state));
@@ -131,31 +131,13 @@ fn neighbourhood(board: Board, state: State) -> Vec<(Move, State)> {
     states
 }
 
-// fn get_nop_moves(move_: Move) -> HashSet<Move> {
-//     let mut nop_moves = HashSet::new();
-//     let (piece_type, dir) = move_;
-//     match dir {
-//         Direction::Up | Direction::Down => {
-//             nop_moves.insert((piece_type, Direction::Down));
-//             nop_moves.insert((piece_type, Direction::Up));
-//         }
-//         Direction::Right | Direction::Left => {
-//             nop_moves.insert((piece_type, Direction::Right));
-//             nop_moves.insert((piece_type, Direction::Left));
-//         }
-//     };
-//     nop_moves
-// }
-
 type VisitedCount = usize;
-
 type Move = (PieceType, Direction);
 type Solution = (Board, State, Vec<Move>, VisitedCount);
 
 fn solve_puzzle(board: Board, state: State) -> Option<Solution> {
-    let mut visited = HashSet::new();
-
     let mut queue = VecDeque::new();
+    let mut visited = HashSet::new();
     queue.push_back((state, Vec::new()));
 
     while let Some((state, moves)) = queue.pop_front() {
@@ -164,11 +146,6 @@ fn solve_puzzle(board: Board, state: State) -> Option<Solution> {
         if sol_found {
             return Some((board, state, moves, visited.len())); // Solution found, yay!
         }
-
-        // let mut nop_moves = HashSet::new();
-        // if !moves.is_empty() {
-        //     nop_moves = get_nop_moves(*moves.last().unwrap());
-        // }
 
         for (move_, state) in neighbourhood(board, state) {
             if visited.contains(&state) {
@@ -188,26 +165,24 @@ fn solve_puzzle(board: Board, state: State) -> Option<Solution> {
 
 // TODO: Improve parser.
 fn puzzle_from_string(input: &str) -> (Board, State) {
-    let items: Vec<&str> = input.split(":").collect();
     let mut board = [[BoardPiece::Empty; 8]; 8];
     let mut state = (0, 0, 0, 0, 0, 0, false);
-    let mut first_helper_found = false;
-    for parts in items.chunks(3) {
+    let items = input.split(",");
+    for item in items {
+        let parts: Vec<&str> = item.split(":").collect();
         match parts[0] {
-            "main_robot" => {
+            "main" => {
                 state.0 = parts[1].parse::<i8>().unwrap();
                 state.1 = parts[2].parse::<i8>().unwrap();
                 board[state.1 as usize][state.0 as usize] = BoardPiece::Start;
             }
-            "helper_robot" => {
-                if first_helper_found {
-                    state.4 = parts[1].parse::<i8>().unwrap();
-                    state.5 = parts[2].parse::<i8>().unwrap();
-                } else {
-                    first_helper_found = true;
-                    state.2 = parts[1].parse::<i8>().unwrap();
-                    state.3 = parts[2].parse::<i8>().unwrap();
-                }
+            "helper1" => {
+                state.2 = parts[1].parse::<i8>().unwrap();
+                state.3 = parts[2].parse::<i8>().unwrap();
+            }
+            "helper2" => {
+                state.4 = parts[1].parse::<i8>().unwrap();
+                state.5 = parts[2].parse::<i8>().unwrap();
             }
             "goal" => {
                 let (x, y) = (
@@ -281,8 +256,9 @@ fn print_board(mut board: Board, state: State) {
 }
 
 fn main() {
-    let input = "map:8:8:helper_robot:1:0:blocker:7:0:blocker:1:1:blocker:3:1:goal:4:1:main_robot:5:1:blocker:6:1:blocker:2:2:helper_robot:1:3:blocker:6:5:blocker:7:6:blocker:1:7";
-    let (board, state) = puzzle_from_string(&input);
+    let pstr = "main:0:0,goal:2:4,helper1:7:0,helper2:7:1,blocker:2:0,blocker:5:0,blocker:6:0,blocker:3:3,blocker:2:5,blocker:3:6,blocker:1:7,blocker:4:7";
+    // let pstr = "main_robot:0:0:goal:2:4:helper_robot:7:0:helper_robot:7:1:blocker:2:0:blocker:5:0:blocker:6:0:blocker:3:3:blocker:2:5:blocker:3:6:blocker:1:7:blocker:4:7";
+    let (board, state) = puzzle_from_string(&pstr);
     print_board(board, state);
 
     let now = Instant::now();
@@ -300,17 +276,4 @@ fn main() {
     }
 
     println!("Elapsed solving: {:.2?}", elapsed);
-}
-
-#[cfg(test)]
-mod test {
-    use super::*;
-
-    #[test]
-    fn solver() {
-        let input = "map:8:8:helper_robot:1:0:blocker:7:0:blocker:1:1:blocker:3:1:goal:4:1:main_robot:5:1:blocker:6:1:blocker:2:2:helper_robot:1:3:blocker:6:5:blocker:7:6:blocker:1:7";
-        let (board, state) = puzzle_from_string(input);
-        let (_, _, moves, _) = solve_puzzle(board, state).unwrap();
-        assert_eq!(moves.len(), 2);
-    }
 }
