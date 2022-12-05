@@ -3,6 +3,8 @@
 // TODO: Find better way to organize state.
 
 use std::collections::{HashSet, VecDeque};
+use std::fs;
+use std::rc::Rc;
 use std::time::Instant;
 
 #[derive(Hash, Debug, Clone, Copy, Eq, PartialEq)]
@@ -32,9 +34,31 @@ enum BoardPiece {
 
 type State = (i8, i8, i8, i8, i8, i8, bool);
 
-type Board = [[BoardPiece; 8]; 8];
+type Board = Vec<Vec<BoardPiece>>;
 
 type Position = (i8, i8);
+
+type VisitedCount = usize;
+
+type Move = (PieceType, Direction);
+
+struct Node {
+    m: Option<Move>,
+    state: State,
+    prev: Option<Rc<Node>>,
+}
+
+impl Node {
+    fn len(&self) -> usize {
+        let mut len = 0;
+        let mut current = self;
+        while let Some(prev) = &current.prev {
+            len += 1;
+            current = prev.as_ref();
+        }
+        len
+    }
+}
 
 fn step(pos: Position, dir: Direction) -> Position {
     match dir {
@@ -45,7 +69,7 @@ fn step(pos: Position, dir: Direction) -> Position {
     }
 }
 
-fn try_move(pos: Position, board: Board, state: State) -> Option<Position> {
+fn try_move(pos: Position, board: &Board, state: State) -> Option<Position> {
     let (ix, iy) = pos;
 
     let out_of_bounds = ix < 0 || ix >= board[0].len() as i8 || iy < 0 || iy >= board.len() as i8;
@@ -58,8 +82,6 @@ fn try_move(pos: Position, board: Board, state: State) -> Option<Position> {
 
     match board[uy][ux] {
         BoardPiece::Blocker => return None,
-        BoardPiece::Helper => return None,
-        BoardPiece::Main => return None,
         _ => {}
     };
 
@@ -74,7 +96,7 @@ fn try_move(pos: Position, board: Board, state: State) -> Option<Position> {
 }
 
 fn next_position(
-    board: Board,
+    board: &Board,
     state: State,
     pos: Position,
     direction: Direction,
@@ -90,7 +112,7 @@ fn next_position(
 }
 
 fn move_piece(
-    board: Board,
+    board: &Board,
     state: State,
     piece_type: PieceType,
     direction: Direction,
@@ -113,7 +135,7 @@ fn move_piece(
     })
 }
 
-fn neighbourhood(board: Board, state: State) -> Vec<(Move, State)> {
+fn neighbourhood(board: &Board, state: State) -> Vec<(Move, State)> {
     use Direction::*;
     use PieceType::*;
 
@@ -131,54 +153,35 @@ fn neighbourhood(board: Board, state: State) -> Vec<(Move, State)> {
     states
 }
 
-// fn get_nop_moves(move_: Move) -> HashSet<Move> {
-//     let mut nop_moves = HashSet::new();
-//     let (piece_type, dir) = move_;
-//     match dir {
-//         Direction::Up | Direction::Down => {
-//             nop_moves.insert((piece_type, Direction::Down));
-//             nop_moves.insert((piece_type, Direction::Up));
-//         }
-//         Direction::Right | Direction::Left => {
-//             nop_moves.insert((piece_type, Direction::Right));
-//             nop_moves.insert((piece_type, Direction::Left));
-//         }
-//     };
-//     nop_moves
-// }
-
-type VisitedCount = usize;
-
-type Move = (PieceType, Direction);
-type Solution = (Board, State, Vec<Move>, VisitedCount);
-
-fn solve_puzzle(board: Board, state: State) -> Option<Solution> {
+fn solve_puzzle(board: &Board, state: State) -> Option<(&Board, State, Node, VisitedCount)> {
     let mut visited = HashSet::new();
 
     let mut queue = VecDeque::new();
-    queue.push_back((state, Vec::new()));
+    queue.push_back(Node {
+        m: None,
+        state,
+        prev: None,
+    });
 
-    while let Some((state, moves)) = queue.pop_front() {
+    while let Some(node) = queue.pop_front() {
+        let state = node.state;
         let sol_found = state.6 && board[state.1 as usize][state.0 as usize] == BoardPiece::Start;
 
         if sol_found {
-            return Some((board, state, moves, visited.len())); // Solution found, yay!
+            return Some((board, state, node, visited.len())); // Solution found, yay!
         }
 
-        // let mut nop_moves = HashSet::new();
-        // if !moves.is_empty() {
-        //     nop_moves = get_nop_moves(*moves.last().unwrap());
-        // }
-
-        for (move_, state) in neighbourhood(board, state) {
+        let rc_node = Rc::new(node);
+        for (move_, state) in neighbourhood(board, rc_node.state) {
             if visited.contains(&state) {
                 continue;
             }
 
-            let mut new_moves = moves.clone(); //TODO: Avoid
-            new_moves.push(move_);
-
-            queue.push_back((state, new_moves));
+            queue.push_back(Node {
+                m: Some(move_),
+                state,
+                prev: Some(Rc::clone(&rc_node)),
+            });
             visited.insert(state);
         }
     }
@@ -189,7 +192,8 @@ fn solve_puzzle(board: Board, state: State) -> Option<Solution> {
 // TODO: Improve parser.
 fn puzzle_from_string(input: &str) -> (Board, State) {
     let items: Vec<&str> = input.split(":").collect();
-    let mut board = [[BoardPiece::Empty; 8]; 8];
+    let mut board =
+        vec![vec![BoardPiece::Empty; items[1].parse().unwrap()]; items[2].parse().unwrap()];
     let mut state = (0, 0, 0, 0, 0, 0, false);
     let mut first_helper_found = false;
     for parts in items.chunks(3) {
@@ -228,6 +232,7 @@ fn puzzle_from_string(input: &str) -> (Board, State) {
     }
     (board, state)
 }
+
 // TODO: Improve print.
 fn print_move(m: &(PieceType, Direction)) {
     let (piece, dir) = m;
@@ -251,15 +256,7 @@ fn print_moves(moves: &Vec<(PieceType, Direction)>) {
     }
 }
 
-// TODO: Improve print
-fn print_board(mut board: Board, state: State) {
-    let (mx, my) = (state.0, state.1);
-    let (h1x, h1y) = (state.2, state.3);
-    let (h2x, h2y) = (state.4, state.5);
-    board[my as usize][mx as usize] = BoardPiece::Main;
-    board[h1y as usize][h1x as usize] = BoardPiece::Helper;
-    board[h2y as usize][h2x as usize] = BoardPiece::Helper;
-
+fn print_board(board: &Board, state: State) {
     println!("==========");
     for line in board {
         let mut output_line = "|".to_string();
@@ -281,21 +278,17 @@ fn print_board(mut board: Board, state: State) {
 }
 
 fn main() {
-    let input = "map:8:8:helper_robot:1:0:blocker:7:0:blocker:1:1:blocker:3:1:goal:4:1:main_robot:5:1:blocker:6:1:blocker:2:2:helper_robot:1:3:blocker:6:5:blocker:7:6:blocker:1:7";
+    let input = "map:8:8:main_robot:0:0:goal:2:4:helper_robot:7:0:helper_robot:7:1:blocker:2:0:blocker:5:0:blocker:6:0:blocker:3:3:blocker:2:5:blocker:3:6:blocker:1:7:blocker:4:7";
     let (board, state) = puzzle_from_string(&input);
-    print_board(board, state);
-
     let now = Instant::now();
-    let res = solve_puzzle(board, state);
+    let res = solve_puzzle(&board, state);
     let elapsed = now.elapsed();
 
     match res {
         None => println!("Could not solve puzzle."),
-        Some((board, state, moves, vsize)) => {
+        Some((board, state, node, vsize)) => {
             print_board(board, state);
-            print_moves(&moves);
             println!("Nodes visited: {}", vsize);
-            println!("Length of solution: {}", moves.len());
         }
     }
 
@@ -308,9 +301,17 @@ mod test {
 
     #[test]
     fn solver() {
-        let input = "map:8:8:helper_robot:1:0:blocker:7:0:blocker:1:1:blocker:3:1:goal:4:1:main_robot:5:1:blocker:6:1:blocker:2:2:helper_robot:1:3:blocker:6:5:blocker:7:6:blocker:1:7";
-        let (board, state) = puzzle_from_string(input);
-        let (_, _, moves, _) = solve_puzzle(board, state).unwrap();
-        assert_eq!(moves.len(), 2);
+        const FILE_NAME: &str = "test_input/tests100.json";
+        let input = fs::read_to_string(FILE_NAME).expect("File not found.");
+        let parsed = json::parse(&input).unwrap();
+        let mut i = 0;
+        for item in parsed.members() {
+            i += 1;
+            let (board, state) = puzzle_from_string(item["map"].as_str().unwrap());
+            let (_, _, moves, _) = solve_puzzle(&board, state).unwrap();
+            let opt = item["optimal"].as_usize().unwrap();
+            println!("Puzzle {}, sol found: {}, sol: {}", i, moves.len(), opt);
+            assert_eq!(moves.len(), opt);
+        }
     }
 }
