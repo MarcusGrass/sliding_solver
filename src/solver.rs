@@ -1,5 +1,4 @@
 use std::collections::{HashSet, VecDeque};
-use std::rc::Rc;
 
 #[derive(Hash, Debug, Clone, Copy, Eq, PartialEq)]
 pub enum Direction {
@@ -31,28 +30,6 @@ pub type State = (i8, i8, i8, i8, i8, i8, bool);
 pub type Board = Vec<Vec<BoardPiece>>;
 
 type Position = (i8, i8);
-
-type VisitedCount = usize;
-
-type Move = (PieceType, Direction);
-
-struct Node {
-    m: Option<Move>,
-    state: State,
-    prev: Option<Rc<Node>>,
-}
-
-impl Node {
-    fn len(&self) -> usize {
-        let mut len = 0;
-        let mut current = self;
-        while let Some(prev) = &current.prev {
-            len += 1;
-            current = prev.as_ref();
-        }
-        len
-    }
-}
 
 fn step(pos: Position, dir: Direction) -> Position {
     match dir {
@@ -147,49 +124,37 @@ fn neighbourhood(board: &Board, state: State) -> Vec<(Move, State)> {
     states
 }
 
-pub fn solve_puzzle(board: &Board, state: State) -> Option<(&Board, State, VisitedCount)> {
+type VisitedCount = usize;
+type Move = (PieceType, Direction);
+
+pub fn solve_puzzle(
+    board: &Board,
+    state: State,
+) -> Option<(&Board, State, Vec<Move>, VisitedCount)> {
     let mut visited = HashSet::new();
 
     let mut queue = VecDeque::new();
-    queue.push_back(state);
+    queue.push_back((state, Vec::new()));
 
-    while let Some(state) = queue.pop_front() {
+    while let Some((state, moves)) = queue.pop_front() {
         let sol_found = state.6 && board[state.1 as usize][state.0 as usize] == BoardPiece::Start;
 
         if sol_found {
-            return Some((board, state, visited.len())); // Solution found, yay!
+            return Some((&board, state, moves, visited.len())); // Solution found, yay!
         }
 
-        for (_, state) in neighbourhood(board, state) {
+        for (move_, state) in neighbourhood(&board, state) {
             if visited.contains(&state) {
                 continue;
             }
 
-            queue.push_back(state);
+            let mut new_moves = moves.clone(); //TODO: Avoid
+            new_moves.push(move_);
+
+            queue.push_back((state, new_moves));
             visited.insert(state);
         }
     }
 
     None // Exhausted search, no solution found.
 }
-
-// #[cfg(test)]
-// mod test {
-//     use super::*;
-
-//     #[test]
-//     fn solver() {
-//         const FILE_NAME: &str = "test_input/tests100.json";
-//         let input = fs::read_to_string(FILE_NAME).expect("File not found.");
-//         let parsed = json::parse(&input).unwrap();
-//         let mut i = 0;
-//         for item in parsed.members() {
-//             i += 1;
-//             let (board, state) = puzzle_from_string(item["map"].as_str().unwrap());
-//             let (_, _, moves, _) = solve_puzzle(&board, state).unwrap();
-//             let opt = item["optimal"].as_usize().unwrap();
-//             println!("Puzzle {}, sol found: {}, sol: {}", i, moves.len(), opt);
-//             assert_eq!(moves.len(), opt);
-//         }
-//     }
-// }
