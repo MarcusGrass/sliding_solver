@@ -6,8 +6,8 @@ use std::fs;
 use std::time::Instant;
 
 fn main() {
-    // test_diff_size();
     test1000();
+    // test_diff_size();
 }
 
 fn test1000() {

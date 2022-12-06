@@ -1,7 +1,7 @@
 use std::collections::VecDeque;
 use std::rc::Rc;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Direction {
     Up,
     Down,
@@ -22,9 +22,12 @@ pub enum BoardPiece {
     Goal,
     Blocker,
     Empty,
-    Helper,
-    Main,
+    BoardHelper,
+    BoardMain,
 }
+
+use Direction::*;
+use PieceType::*;
 
 pub type State = (Position, Position, Position, u8);
 pub type Board = Vec<Vec<BoardPiece>>;
@@ -62,40 +65,28 @@ fn pos_to_y(pos: &Position) -> usize {
     (pos & 0b0000_1111) as usize
 }
 
+fn xy_to_pos(x: usize, y: usize) -> Position {
+    ((x << 4) + y) as u8
+}
+
 fn try_move(pos: &Position, dir: &Direction, board: &Board, state: &State) -> Option<Position> {
     let mut x = pos_to_x(pos);
     let mut y = pos_to_y(pos);
 
-    use Direction::*;
+    let out_of_bounds = (y == 0 && *dir == Up)
+        || (x == 0 && *dir == Left)
+        || (y + 1 >= board.len() && *dir == Down)
+        || (x + 1 >= board[0].len() && *dir == Right);
+
+    if out_of_bounds {
+        return None;
+    }
+
     match dir {
-        Up => {
-            if y == 0 {
-                return None;
-            } else {
-                y = y - 1;
-            }
-        }
-        Down => {
-            if y + 1 >= board.len() {
-                return None;
-            } else {
-                y = y + 1;
-            }
-        }
-        Left => {
-            if x == 0 {
-                return None;
-            } else {
-                x = x - 1;
-            }
-        }
-        Right => {
-            if x + 1 >= board[0].len() {
-                return None;
-            } else {
-                x = x + 1;
-            }
-        }
+        Up => y = y - 1,
+        Down => y = y + 1,
+        Left => x = x - 1,
+        Right => x = x + 1,
     };
 
     match board[y as usize][x as usize] {
@@ -103,7 +94,7 @@ fn try_move(pos: &Position, dir: &Direction, board: &Board, state: &State) -> Op
         _ => {}
     };
 
-    let pos = ((x << 4) + y) as u8;
+    let pos = xy_to_pos(x, y);
 
     // Check collison with other pieces
     if pos == state.0 || pos == state.1 || pos == state.2 {
@@ -127,7 +118,6 @@ fn next_position(
 }
 
 fn move_piece(board: &Board, state: &State, piece: &PieceType, dir: &Direction) -> Option<State> {
-    use PieceType::*;
     let start_pos = match piece {
         Main => state.0,
         HelperOne => state.1,
@@ -152,9 +142,6 @@ fn move_piece(board: &Board, state: &State, piece: &PieceType, dir: &Direction) 
 }
 
 fn neighbourhood(board: &Board, state: &State) -> Vec<(Move, State)> {
-    use Direction::*;
-    use PieceType::*;
-
     let mut states = Vec::new();
 
     for piece in [Main, HelperOne, HelperTwo] {

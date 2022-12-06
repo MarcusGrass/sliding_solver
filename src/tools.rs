@@ -75,8 +75,8 @@ pub fn print_board(board: &Board, state: State) {
         let mut output_line = "|".to_string();
         for piece in line {
             let sign = match piece {
-                BoardPiece::Main => "M",
-                BoardPiece::Helper => "H",
+                BoardPiece::BoardMain => "M",
+                BoardPiece::BoardHelper => "H",
                 BoardPiece::Blocker => "#",
                 BoardPiece::Goal => "o",
                 BoardPiece::Empty => " ",
