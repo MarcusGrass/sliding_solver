@@ -15,7 +15,7 @@ fn main() {
     for line in input.lines() {
         i += 1;
         let (board, state) = puzzle_from_string(line);
-        let (_, _, moves, _) = solve_puzzle(&board, state).unwrap();
+        let (_, _, moves) = solve_puzzle(&board, state).unwrap();
         if i % 20 == 0 {
             println!("Puzzle {}, sol found: {}", i, moves.len());
             print_moves(&moves);

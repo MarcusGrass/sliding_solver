@@ -4,23 +4,26 @@ pub fn puzzle_from_string(input: &str) -> (Board, State) {
     let items: Vec<&str> = input.split(":").collect();
     let mut board =
         vec![vec![BoardPiece::Empty; items[1].parse().unwrap()]; items[2].parse().unwrap()];
-    let mut state = (0, 0, 0, 0, 0, 0, false);
+    let mut state = (0, 0, 0, 0);
     let mut first_helper_found = false;
     for parts in items.chunks(3) {
         match parts[0] {
             "main_robot" => {
-                state.0 = parts[1].parse::<i8>().unwrap();
-                state.1 = parts[2].parse::<i8>().unwrap();
-                board[state.1 as usize][state.0 as usize] = BoardPiece::Start;
+                let x = parts[1].parse::<u8>().unwrap();
+                let y = parts[2].parse::<u8>().unwrap();
+                board[y as usize][x as usize] = BoardPiece::Start;
+                state.0 = (x << 4) + y;
             }
             "helper_robot" => {
                 if first_helper_found {
-                    state.4 = parts[1].parse::<i8>().unwrap();
-                    state.5 = parts[2].parse::<i8>().unwrap();
+                    let x = parts[1].parse::<u8>().unwrap();
+                    let y = parts[2].parse::<u8>().unwrap();
+                    state.1 = (x << 4) + y;
                 } else {
                     first_helper_found = true;
-                    state.2 = parts[1].parse::<i8>().unwrap();
-                    state.3 = parts[2].parse::<i8>().unwrap();
+                    let x = parts[1].parse::<u8>().unwrap();
+                    let y = parts[2].parse::<u8>().unwrap();
+                    state.2 = (x << 4) + y;
                 }
             }
             "goal" => {
