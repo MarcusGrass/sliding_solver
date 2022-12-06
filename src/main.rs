@@ -1,7 +1,3 @@
-// TODO: Stop copying the move list.
-// TODO: Figure out when to use references. Am always copying atm.
-// TODO: Find better way to organize state.
-
 pub mod solver;
 pub mod tools;
 use crate::solver::solve_puzzle;
