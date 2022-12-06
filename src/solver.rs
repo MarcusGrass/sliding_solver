@@ -45,6 +45,7 @@ impl Node {
     fn new(m: Option<Move>, state: State, prev: Option<Rc<Self>>) -> Self {
         Self { m, state, prev }
     }
+
     fn moves(&self) -> Vec<Move> {
         let mut moves = Vec::new();
         let mut current = self;
@@ -111,9 +112,11 @@ fn next_position(
     dir: &Direction,
 ) -> Option<Position> {
     let mut new_pos = try_move(pos, dir, board, state)?;
+
     while let Some(pos) = try_move(&new_pos, &dir, board, state) {
         new_pos = pos;
     }
+
     Some(new_pos)
 }
 
