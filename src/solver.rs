@@ -1,7 +1,7 @@
 use std::collections::VecDeque;
 use std::rc::Rc;
 
-#[derive(Hash, Debug, Clone, Copy, Eq, PartialEq)]
+#[derive(Clone, Copy)]
 pub enum Direction {
     Up,
     Down,
@@ -9,14 +9,14 @@ pub enum Direction {
     Right,
 }
 
-#[derive(Hash, PartialEq, Eq, Clone, Copy)]
+#[derive(Clone, Copy)]
 pub enum PieceType {
     HelperOne,
     HelperTwo,
     Main,
 }
 
-#[derive(PartialEq, Eq, Clone, Copy)]
+#[derive(PartialEq, Eq, Clone)]
 pub enum BoardPiece {
     Start,
     Goal,
@@ -54,15 +54,15 @@ impl Node {
     }
 }
 
-fn pos_to_x(pos: Position) -> usize {
+fn pos_to_x(pos: &Position) -> usize {
     (pos >> 4) as usize
 }
 
-fn pos_to_y(pos: Position) -> usize {
+fn pos_to_y(pos: &Position) -> usize {
     (pos & 0b0000_1111) as usize
 }
 
-fn try_move(pos: Position, dir: Direction, board: &Board, state: State) -> Option<Position> {
+fn try_move(pos: &Position, dir: &Direction, board: &Board, state: &State) -> Option<Position> {
     let mut x = pos_to_x(pos);
     let mut y = pos_to_y(pos);
 
@@ -113,15 +113,20 @@ fn try_move(pos: Position, dir: Direction, board: &Board, state: State) -> Optio
     Some(pos)
 }
 
-fn next_position(board: &Board, state: State, pos: Position, dir: Direction) -> Option<Position> {
+fn next_position(
+    board: &Board,
+    state: &State,
+    pos: &Position,
+    dir: &Direction,
+) -> Option<Position> {
     let mut new_pos = try_move(pos, dir, board, state)?;
-    while let Some(pos) = try_move(new_pos, dir, board, state) {
+    while let Some(pos) = try_move(&new_pos, &dir, board, state) {
         new_pos = pos;
     }
     Some(new_pos)
 }
 
-fn move_piece(board: &Board, state: State, piece: PieceType, dir: Direction) -> Option<State> {
+fn move_piece(board: &Board, state: &State, piece: &PieceType, dir: &Direction) -> Option<State> {
     use PieceType::*;
     let start_pos = match piece {
         Main => state.0,
@@ -129,12 +134,12 @@ fn move_piece(board: &Board, state: State, piece: PieceType, dir: Direction) -> 
         HelperTwo => state.2,
     };
 
-    let pos = next_position(board, state, start_pos, dir)?;
+    let pos = next_position(board, state, &start_pos, dir)?;
 
     Some(match piece {
         Main => {
             let goal_found =
-                if state.3 == 1 || board[pos_to_y(pos)][pos_to_x(pos)] == BoardPiece::Goal {
+                if state.3 == 1 || board[pos_to_y(&pos)][pos_to_x(&pos)] == BoardPiece::Goal {
                     1
                 } else {
                     0
@@ -146,7 +151,7 @@ fn move_piece(board: &Board, state: State, piece: PieceType, dir: Direction) -> 
     })
 }
 
-fn neighbourhood(board: &Board, state: State) -> Vec<(Move, State)> {
+fn neighbourhood(board: &Board, state: &State) -> Vec<(Move, State)> {
     use Direction::*;
     use PieceType::*;
 
@@ -154,8 +159,8 @@ fn neighbourhood(board: &Board, state: State) -> Vec<(Move, State)> {
 
     for piece in [Main, HelperOne, HelperTwo] {
         for direction in [Left, Right, Up, Down] {
-            if let Some(state) = move_piece(board, state, piece, direction) {
-                let move_ = (piece, direction);
+            if let Some(state) = move_piece(board, state, &piece, &direction) {
+                let move_ = (piece.clone(), direction.clone());
                 states.push((move_, state));
             }
         }
@@ -173,14 +178,14 @@ pub fn solve_puzzle(board: &Board, state: State) -> Option<(&Board, State, Vec<M
     while let Some(node) = queue.pop_front() {
         let state = node.state;
         let sol_found =
-            state.3 == 1 && board[pos_to_y(state.0)][pos_to_x(state.0)] == BoardPiece::Start;
+            state.3 == 1 && board[pos_to_y(&state.0)][pos_to_x(&state.0)] == BoardPiece::Start;
 
         if sol_found {
             return Some((board, state, node.moves())); // Solution found, yay!
         }
 
         let rc_node = Rc::new(node);
-        for (move_, state) in neighbourhood(board, rc_node.state) {
+        for (move_, state) in neighbourhood(board, &rc_node.state) {
             if visited[state.0 as usize][state.1 as usize][state.2 as usize][state.3 as usize] {
                 continue;
             }
