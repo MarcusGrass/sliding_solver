@@ -170,7 +170,7 @@ fn neighbourhood(board: &Board, state: &State) -> Vec<(Move, State)> {
 }
 
 pub fn solve_puzzle(board: &Board, state: State) -> Option<(&Board, State, Vec<Move>)> {
-    let mut visited = [[[[false; 2]; 128]; 128]; 128];
+    let mut visited = [[[[false; 2]; 160]; 160]; 160];
     let mut queue = VecDeque::new();
 
     queue.push_back(Node::new(None, state, None));
