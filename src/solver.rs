@@ -29,11 +29,11 @@ pub enum BoardPiece {
 use Direction::*;
 use PieceType::*;
 
-pub type State = (Position, Position, Position, u8);
-pub type Board = Vec<Vec<BoardPiece>>;
-
 type Position = u8;
 type Move = (PieceType, Direction);
+
+pub type State = (Position, Position, Position, u8);
+pub type Board = Vec<Vec<BoardPiece>>;
 
 struct Node {
     m: Option<Move>,
@@ -58,18 +58,19 @@ impl Node {
     }
 }
 
-fn pos_to_x(pos: &Position) -> usize {
+pub fn pos_to_x(pos: &Position) -> usize {
     (pos >> 4) as usize
 }
 
-fn pos_to_y(pos: &Position) -> usize {
+pub fn pos_to_y(pos: &Position) -> usize {
     (pos & 0b0000_1111) as usize
 }
 
-fn xy_to_pos(x: usize, y: usize) -> Position {
+pub fn xy_to_pos(x: usize, y: usize) -> Position {
     ((x << 4) + y) as u8
 }
 
+// Steps from 'pos' in direction 'dir' and return Some(pos) if valid.
 fn try_move(pos: &Position, dir: &Direction, board: &Board, state: &State) -> Option<Position> {
     let mut x = pos_to_x(pos);
     let mut y = pos_to_y(pos);
@@ -105,6 +106,7 @@ fn try_move(pos: &Position, dir: &Direction, board: &Board, state: &State) -> Op
     Some(pos)
 }
 
+// Returns next position in direction 'dir' if move is legal.
 fn next_position(
     board: &Board,
     state: &State,
@@ -120,6 +122,7 @@ fn next_position(
     Some(new_pos)
 }
 
+// Gives new state with 'piece' moved in direction 'dir'.
 fn move_piece(board: &Board, state: &State, piece: &PieceType, dir: &Direction) -> Option<State> {
     let start_pos = match piece {
         Main => state.0,
@@ -144,6 +147,7 @@ fn move_piece(board: &Board, state: &State, piece: &PieceType, dir: &Direction) 
     })
 }
 
+// Gives a vector of all possible moves from a given state.
 fn neighbourhood(board: &Board, state: &State) -> Vec<(Move, State)> {
     let mut states = Vec::new();
 
@@ -159,6 +163,7 @@ fn neighbourhood(board: &Board, state: &State) -> Vec<(Move, State)> {
     states
 }
 
+// Brute force BFS for first (and thus optimal) solution.
 pub fn solve_puzzle(board: &Board, state: State) -> Option<(&Board, State, Vec<Move>)> {
     let mut visited = [[[[false; 2]; 160]; 160]; 160];
     let mut queue = VecDeque::new();

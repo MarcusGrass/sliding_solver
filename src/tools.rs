@@ -69,9 +69,17 @@ pub fn print_moves(moves: &Vec<(PieceType, Direction)>) {
     }
 }
 
+// TODO: Cleanup
 pub fn print_board(board: &Board, state: State) {
+    let mut new_board = board.clone();
     println!("==========");
-    for line in board {
+    let (m_x, m_y) = (pos_to_x(&state.0), pos_to_y(&state.0));
+    let (h1_x, h1_y) = (pos_to_x(&state.1), pos_to_y(&state.1));
+    let (h2_x, h2_y) = (pos_to_x(&state.2), pos_to_y(&state.2));
+    new_board[m_y][m_x] = BoardPiece::BoardMain;
+    new_board[h1_y][h1_x] = BoardPiece::BoardHelper;
+    new_board[h2_y][h2_x] = BoardPiece::BoardHelper;
+    for line in new_board {
         let mut output_line = "|".to_string();
         for piece in line {
             let sign = match piece {
