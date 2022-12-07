@@ -1,13 +1,13 @@
 pub mod solver;
 pub mod tools;
 use crate::solver::solve_puzzle;
-use crate::tools::{print_moves, puzzle_from_string};
+use crate::tools::puzzle_from_string;
 use std::fs;
 use std::time::Instant;
 
 fn main() {
     test1000();
-    // test_diff_size();
+    test_diff_size();
 }
 
 fn test1000() {
@@ -18,7 +18,7 @@ fn test1000() {
     let before = Instant::now();
     for line in input.lines() {
         i += 1;
-        if i % 1 == 0 {
+        if i % 1 == 20 {
             let now = Instant::now();
             let (board, state) = puzzle_from_string(line);
             let (_, _, _) = solve_puzzle(&board, state).unwrap();

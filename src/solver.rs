@@ -163,7 +163,7 @@ fn neighbourhood(board: &Board, state: &State) -> Vec<(Move, State)> {
     states
 }
 
-// Brute force BFS for first (and thus optimal) solution.
+// Breadth first search for first (and thus optimal) solution.
 pub fn solve_puzzle(board: &Board, state: State) -> Option<(&Board, State, Vec<Move>)> {
     let mut visited = [[[[false; 2]; 160]; 160]; 160];
     let mut queue = VecDeque::new();
