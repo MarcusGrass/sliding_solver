@@ -147,7 +147,7 @@ fn move_piece(board: &Board, state: &State, piece: &PieceType, dir: &Direction) 
     })
 }
 
-// Gives a vector of all possible moves from a given state.
+// Gives a vector of all neighbouring states together with corresponding move.
 fn neighbourhood(board: &Board, state: &State) -> Vec<(Move, State)> {
     let mut states = Vec::new();
 
