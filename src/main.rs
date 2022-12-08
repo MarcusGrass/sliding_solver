@@ -7,7 +7,6 @@ use std::time::Instant;
 
 fn main() {
     test1000();
-    test_diff_size();
 }
 
 fn test1000() {
@@ -43,7 +42,7 @@ fn test1000() {
     );
 }
 
-fn test_diff_size() {
+fn _test_diff_size() {
     const FILE_NAME: &str = "test_input/tests100.json";
     let input = fs::read_to_string(FILE_NAME).expect("File not found.");
     let parsed = json::parse(&input).unwrap();
