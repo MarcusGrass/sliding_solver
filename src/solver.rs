@@ -1,7 +1,10 @@
 use std::collections::VecDeque;
 use std::rc::Rc;
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+use Direction::*;
+use PieceType::*;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Direction {
     Up,
     Down,
@@ -9,7 +12,7 @@ pub enum Direction {
     Right,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub enum PieceType {
     HelperOne,
     HelperTwo,
@@ -25,9 +28,6 @@ pub enum BoardPiece {
     BoardHelper,
     BoardMain,
 }
-
-use Direction::*;
-use PieceType::*;
 
 type Position = u8;
 type Move = (PieceType, Direction);
@@ -148,14 +148,16 @@ fn move_piece(board: &Board, state: &State, piece: &PieceType, dir: &Direction) 
 }
 
 // Gives a vector of all neighbouring states together with corresponding move.
-fn neighbourhood(board: &Board, state: &State) -> Vec<(Move, State)> {
-    let mut states = Vec::new();
+fn neighbourhood(board: &Board, state: &State) -> heapless::Vec<(Move, State), 12> {
+    // Use heapless to skip alloc for a known max size container
+    // Heapless instantiation is usually faster than filling an array with a default value.
+    let mut states = heapless::Vec::new();
 
     for piece in [Main, HelperOne, HelperTwo] {
         for direction in [Left, Right, Up, Down] {
             if let Some(state) = move_piece(board, state, &piece, &direction) {
                 let move_ = (piece.clone(), direction.clone());
-                states.push((move_, state));
+                states.push((move_, state)).expect("Undersized vec");
             }
         }
     }
