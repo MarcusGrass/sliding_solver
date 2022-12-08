@@ -30,7 +30,7 @@ pub enum BoardPiece {
 }
 
 type Position = u8;
-type Move = (PieceType, Direction);
+pub type Move = (PieceType, Direction);
 
 pub type State = (Position, Position, Position, u8);
 pub type Board = Vec<Vec<BoardPiece>>;
@@ -167,7 +167,7 @@ fn neighbourhood(board: &Board, state: &State) -> heapless::Vec<(Move, State), 1
 
 // Breadth first search for first (and thus optimal) solution.
 pub fn solve_puzzle(board: &Board, state: State) -> Option<(&Board, State, Vec<Move>)> {
-    let mut visited = [[[[false; 2]; 160]; 160]; 160];
+    let mut visited = vec![[[[false; 2]; 160]; 160]; 160];
     let mut queue = VecDeque::new();
 
     queue.push_back(Node::new(None, state, None));
