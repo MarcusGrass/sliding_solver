@@ -163,17 +163,9 @@ fn neighbourhood(board: &Board, state: &State) -> Vec<(Move, State)> {
     states
 }
 
-fn check(pos: Position, bitv: u128) -> bool {
-    1 << pos & bitv != 0
-}
-
-fn set(pos: Position, bitv: &mut u128) {
-    *bitv = 1 << pos | *bitv
-}
-
 // Breadth first search for first (and thus optimal) solution.
 pub fn solve_puzzle(board: &Board, state: State) -> Option<(&Board, State, Vec<Move>)> {
-    let mut visited = [[[0 as u128; 128]; 128]; 2];
+    let mut visited = [[[[false; 2]; 160]; 160]; 160];
     let mut queue = VecDeque::new();
 
     queue.push_back(Node::new(None, state, None));
@@ -189,13 +181,12 @@ pub fn solve_puzzle(board: &Board, state: State) -> Option<(&Board, State, Vec<M
 
         let rc_node = Rc::new(node);
         for (move_, state) in neighbourhood(board, &rc_node.state) {
-            let (m, h1, h2, g) = (state.0, state.1, state.2, state.3);
-            if check(h2, visited[g as usize][m as usize][h1 as usize]) {
+            if visited[state.0 as usize][state.1 as usize][state.2 as usize][state.3 as usize] {
                 continue;
             }
 
             queue.push_back(Node::new(Some(move_), state, Some(Rc::clone(&rc_node))));
-            set(h2, &mut visited[g as usize][m as usize][h1 as usize]);
+            visited[state.0 as usize][state.1 as usize][state.2 as usize][state.3 as usize] = true;
         }
     }
 
